@@ -14,12 +14,16 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <GL/freeglut_ext.h>
+#include <vector>
+#include <fstream>
+#include <sstream>
+
 #endif
 
 
 #include "amath.h"
 
-const int NumVertices = 3;
+int NumVertices = 0;
 
 typedef amath::vec4  point4;
 typedef amath::vec4  color4;
@@ -31,10 +35,7 @@ float posy = 0.0;   // translation along Y
 GLuint buffers[2];
 GLint matrix_loc;
 
-point4  vertices[3] = {
-    point4(-0.25,0.0,0.0, 1.0),
-    point4( 0.25,0.0,0.0, 1.0),
-    point4( 0.0, 0.5,0.0, 1.0)};
+point4  *vertices = nullptr;
 
 // viewer's position, for lighting calculations
 vec4 viewer = vec4(0.0, 0.0, -1.0, 0.0);
@@ -51,11 +52,11 @@ color4 material_specular = color4(1.0, 0.8, 0.0, 1.0);
 float material_shininess = 100.0;
 
 // we will copy our transformed points to here:
-point4 points[NumVertices];
+point4 *points = nullptr;
 
 // and we will store the colors, per face per vertex, here. since there is
 // only 1 triangle, with 3 vertices, there will just be 3 here:
-color4 colors[NumVertices];
+color4 *colors = nullptr;
 
 // a transformation matrix, for the rotation, which we will apply to every
 // vertex:
@@ -76,37 +77,128 @@ vec4 product(vec4 a, vec4 b)
 // array.
 void tri()
 {
-    // compute the lighting at each vertex, then set it as the color there:
-    vec3 n1 = normalize(cross(ctm*vertices[1] - ctm*vertices[0],
-                              ctm*vertices[2] - ctm*vertices[1]));
-    vec4 n = vec4(n1[0], n1[1], n1[2], 0.0);
-    vec4 half = normalize(light_position+viewer);
-    color4 ambient_color, diffuse_color, specular_color;
-    
-    ambient_color = product(material_ambient, light_ambient);
-    float dd = dot(light_position, n);
-    
-    if(dd>0.0) diffuse_color = dd*product(light_diffuse, material_diffuse);
-    else diffuse_color =  color4(0.0, 0.0, 0.0, 1.0);
-    
-    dd = dot(half, n);
-    if(dd > 0.0) specular_color = exp(material_shininess*log(dd))*product(light_specular, material_specular);
-    else specular_color = vec4(0.0, 0.0, 0.0, 1.0);
-    
-    
-    // now transform the vertices according to the ctm transformation matrix,
-    // and set the colors for each of them as well. as we are going to give
-    // flat shading, we will ingore the specular component for now.
-    points[0] = ctm*vertices[0];
-    colors[0] = ambient_color + diffuse_color;
-    
-    points[1] = ctm*vertices[1];
-    colors[1] = ambient_color + diffuse_color;
-    
-    points[2] = ctm*vertices[2];
-    colors[2] = ambient_color + diffuse_color;
+    int n = NumVertices / 3;
+    for (int i = 0; i < n; i++) {
+        // compute the lighting at each vertex, then set it as the color there:
+        vec3 n1 = normalize(cross(ctm*vertices[3 * i + 1] - ctm*vertices[3 * i],
+                                  ctm*vertices[3 * i + 2] - ctm*vertices[3 * i + 1]));
+        vec4 n = vec4(n1[0], n1[1], n1[2], 0.0);
+        vec4 half = normalize(light_position+viewer);
+        color4 ambient_color, diffuse_color, specular_color;
+
+        ambient_color = product(material_ambient, light_ambient);
+        float dd = dot(light_position, n);
+
+        if(dd>0.0) diffuse_color = dd*product(light_diffuse, material_diffuse);
+        else diffuse_color =  color4(0.0, 0.0, 0.0, 1.0);
+
+        dd = dot(half, n);
+        if(dd > 0.0) specular_color = exp(material_shininess*log(dd))*product(light_specular, material_specular);
+        else specular_color = vec4(0.0, 0.0, 0.0, 1.0);
+
+
+        // now transform the vertices according to the ctm transformation matrix,
+        // and set the colors for each of them as well. as we are going to give
+        // flat shading, we will ingore the specular component for now.
+        points[3 * i] = ctm*vertices[3 * i];
+        colors[3 * i] = ambient_color + diffuse_color;
+
+        points[3 * i + 1] = ctm*vertices[3 * i + 1];
+        colors[3 * i + 1] = ambient_color + diffuse_color;
+
+        points[3 * i + 2] = ctm*vertices[3 * i + 2];
+        colors[3 * i + 2] = ambient_color + diffuse_color;
+    }
 }
 
+void parseObjFile(const std::string &file, std::vector<int> &tris, std::vector<float> &verts) {
+    // clear out the tris and verts vectors:
+    tris.clear();
+    verts.clear();
+
+    std::ifstream in(file);
+
+    if (!in.good()) {
+        std::cout << "Fails at reading file " << file << std::endl;
+    }
+
+    char buffer[1025];
+    std::string cmd;
+
+    for (int line = 1; in.good(); line++) {
+        in.getline(buffer, 1024);
+        buffer[in.gcount()] = 0;
+
+        cmd = "";
+
+        std::istringstream iss(buffer);
+
+        iss >> cmd;
+
+        if (cmd[0] == '#' or cmd.empty()) {
+            // ignore comments or blank lines
+            continue;
+        }
+        else if (cmd == "v") {
+            // got a vertex:
+
+            // read in the parameters:
+            float pa, pb, pc;
+            iss >> pa >> pb >> pc;
+
+            verts.push_back(pa);
+            verts.push_back(pb);
+            verts.push_back(pc);
+        }
+        else if (cmd == "f") {
+            // got a face (triangle)
+
+            // read in the parameters:
+            int i, j, k;
+            iss >> i >> j >> k;
+
+            // vertex numbers in OBJ files start with 1, but in C++ array
+            // indices start with 0, so we're shifting everything down by
+            // 1
+            tris.push_back(i - 1);
+            tris.push_back(j - 1);
+            tris.push_back(k - 1);
+        }
+        else {
+            std::cerr << "Parser error: invalid command at line " << line << std::endl;
+        }
+
+    }
+
+    in.close();
+}
+
+void init_all_data(const std::string &file) {
+    std::vector<int> tris;
+    std::vector<float> verts;
+
+    parseObjFile(file, tris, verts);
+
+    NumVertices = static_cast<int>(tris.size());
+    vertices = new point4[NumVertices];
+    points = new point4[NumVertices];
+    colors = new color4[NumVertices];
+
+    int n = NumVertices / 3;
+    for (int i = 0; i < n; ++i) {
+        // get the vertices
+        vertices[3 * i] = point4(verts[3 * tris[3 * i]],
+                                 verts[3 * tris[3 * i] + 1],
+                                 verts[3 * tris[3 * i] + 2], 1.0);
+        vertices[3 * i + 1] = point4(verts[3 * tris[3 * i + 1]],
+                                     verts[3 * tris[3 * i + 1] + 1],
+                                     verts[3 * tris[3 * i + 1] + 2], 1.0);
+        vertices[3 * i + 1] = point4(verts[3 * tris[3 * i + 2]],
+                                     verts[3 * tris[3 * i + 2] + 1],
+                                     verts[3 * tris[3 * i + 2] + 2], 1.0);
+    }
+
+}
 
 // initialization: set up a Vertex Array Object (VAO) and then
 void init()
@@ -265,6 +357,11 @@ void mykey(unsigned char key, int mousex, int mousey)
 
 int main(int argc, char** argv)
 {
+    if (argc != 2) {
+        std::cerr << "Usage: glrender OBJ_FILE" << std::endl;
+        return -1;
+    }
+    init_all_data(argv[1]);
 
     // initialize glut, and set the display modes
     glutInit(&argc, argv);
