@@ -5,7 +5,7 @@
 // "vPosition", one for each vertex.
 //
 // on mac you may have to say: "attribute vec4 vPosition;" instead of this:
-attribute vec4 vPosition;
+in vec4 vPosition;
 
 // we are also going to be getting color values, per-vertex, from the main
 // program running on the cpu (and that are then stored in the VBO on the
@@ -14,7 +14,7 @@ attribute vec4 vPosition;
 // amongst the 3 vertex colors on the triangle that fragment is a part of.
 //
 // on mac you may have to say: "attribute vec4 vColor;" instead of this:
-attribute vec4 vColor;
+in vec4 vColor;
 
 // we are going to be outputting a single 4-vector, called color, which
 // may be different for each vertex.
