@@ -30,12 +30,12 @@ typedef amath::vec4 color4;
 
 // variables need to be initialized
 int NumVertices = 0;
-point4 *vertices = nullptr;
+point4 *vertices = NULL;
 // we will copy our transformed points to here:
-point4 *points = nullptr;
+point4 *points = NULL;
 // and we will store the colors, per face per vertex, here. since there is
 // only 1 triangle, with 3 vertices, there will just be 3 here:
-color4 *colors = nullptr;
+color4 *colors = NULL;
 
 
 float theta = 0.0;  // rotation around the Y (up) axis
@@ -76,7 +76,7 @@ void parseObjFile(const std::string &file, std::vector<int> &tris, std::vector<f
     tris.clear();
     verts.clear();
 
-    std::ifstream in(file);
+    std::ifstream in(file.c_str());
 
     if (!in.good()) {
         std::cout << "Fails at reading file " << file << std::endl;
@@ -139,7 +139,7 @@ void init_all_data(const std::string &file) {
 
     parseObjFile(file, tris, verts);
 
-    NumVertices = static_cast<int>(tris.size());
+    NumVertices = (int)tris.size();
     vertices = new point4[NumVertices];
     points = new point4[NumVertices];
     colors = new color4[NumVertices];
@@ -389,5 +389,10 @@ int main(int argc, char **argv) {
 
     // once we call this, we no longer have control except through the callbacks:
     glutMainLoop();
+
+    // clean up all the memory allocation on heap
+    delete [] vertices;
+    delete [] points;
+    delete [] colors;
     return 0;
 }
