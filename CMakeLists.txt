@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(glrender)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall")
-set(SOURCE_FILES main.cpp amath.h checkerror.h initshader.cpp mat.h vec.h)
+set(SOURCE_FILES main.cc amath.h checkerror.h initshader.cc mat.h vec.h)
 
 include_directories("/usr/include/GL")
 

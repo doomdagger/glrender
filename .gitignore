@@ -29,3 +29,7 @@
 
 # clion
 .idea/
+myprog
+prog_out
+CMake*
+!CMakeLists.txt
