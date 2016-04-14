@@ -36,6 +36,9 @@ point4 *points = nullptr;
 // and we will store the colors, per face per vertex, here. since there is
 // only 1 triangle, with 3 vertices, there will just be 3 here:
 color4 *colors = nullptr;
+// store all triangles' norms
+vec3 *norms = nullptr;
+
 
 float theta = 0.0;  // rotation around the Y (up) axis
 float posx = 0.0;   // translation along X
@@ -144,6 +147,7 @@ void init_all_data(const std::string &file) {
     colors = new color4[NumVertices];
 
     int n = NumVertices / 3;
+    norms = new vec3[n];
     for (int i = 0; i < n; ++i) {
         // get the vertices
         vertices[3 * i] = point4(verts[3 * tris[3 * i]],
@@ -155,6 +159,8 @@ void init_all_data(const std::string &file) {
         vertices[3 * i + 2] = point4(verts[3 * tris[3 * i + 2]],
                                      verts[3 * tris[3 * i + 2] + 1],
                                      verts[3 * tris[3 * i + 2] + 2], 1.0);
+        norms[i] = normalize(cross(ctm * vertices[3 * i + 1] - ctm * vertices[3 * i],
+                                   ctm * vertices[3 * i + 2] - ctm * vertices[3 * i + 1]));
     }
 }
 
@@ -162,23 +168,26 @@ void init_all_data(const std::string &file) {
 // also, compute the lighting at each vertex, and put that into the colors
 // array.
 void tri() {
+    // pre-compute variables
+    vec4 half = normalize(light_position + viewer);
+    color4 ambient_color = product(material_ambient, light_ambient);
+    vec4 dlpm = product(light_diffuse, material_diffuse);
+    vec4 slpm = product(light_specular, material_specular);
+
     int n = NumVertices / 3;
     for (int i = 0; i < n; i++) {
         // compute the lighting at each vertex, then set it as the color there:
-        vec3 n1 = normalize(cross(ctm * vertices[3 * i + 1] - ctm * vertices[3 * i],
-                                  ctm * vertices[3 * i + 2] - ctm * vertices[3 * i + 1]));
-        vec4 n = vec4(n1[0], n1[1], n1[2], 0.0);
-        vec4 half = normalize(light_position + viewer);
-        color4 ambient_color, diffuse_color, specular_color;
+        vec4 n = vec4(norms[i][0], norms[i][1], norms[i][2], 0.0);
 
-        ambient_color = product(material_ambient, light_ambient);
+        color4 diffuse_color, specular_color;
+
         float dd = dot(light_position, n);
 
-        if (dd > 0.0) diffuse_color = dd * product(light_diffuse, material_diffuse);
+        if (dd > 0.0) diffuse_color = dd * dlpm;
         else diffuse_color = color4(0.0, 0.0, 0.0, 1.0);
 
         dd = dot(half, n);
-        if (dd > 0.0) specular_color = exp(material_shininess * log(dd)) * product(light_specular, material_specular);
+        if (dd > 0.0) specular_color = exp(material_shininess * log(dd)) * slpm;
         else specular_color = vec4(0.0, 0.0, 0.0, 1.0);
 
 
