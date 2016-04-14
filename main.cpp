@@ -152,7 +152,7 @@ void init_all_data(const std::string &file) {
         vertices[3 * i + 1] = point4(verts[3 * tris[3 * i + 1]],
                                      verts[3 * tris[3 * i + 1] + 1],
                                      verts[3 * tris[3 * i + 1] + 2], 1.0);
-        vertices[3 * i + 1] = point4(verts[3 * tris[3 * i + 2]],
+        vertices[3 * i + 2] = point4(verts[3 * tris[3 * i + 2]],
                                      verts[3 * tris[3 * i + 2] + 1],
                                      verts[3 * tris[3 * i + 2] + 2], 1.0);
     }
