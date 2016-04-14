@@ -36,8 +36,6 @@ point4 *points = nullptr;
 // and we will store the colors, per face per vertex, here. since there is
 // only 1 triangle, with 3 vertices, there will just be 3 here:
 color4 *colors = nullptr;
-// store all triangles' norms
-vec3 *norms = nullptr;
 
 
 float theta = 0.0;  // rotation around the Y (up) axis
@@ -147,7 +145,6 @@ void init_all_data(const std::string &file) {
     colors = new color4[NumVertices];
 
     int n = NumVertices / 3;
-    norms = new vec3[n];
     for (int i = 0; i < n; ++i) {
         // get the vertices
         vertices[3 * i] = point4(verts[3 * tris[3 * i]],
@@ -159,8 +156,6 @@ void init_all_data(const std::string &file) {
         vertices[3 * i + 2] = point4(verts[3 * tris[3 * i + 2]],
                                      verts[3 * tris[3 * i + 2] + 1],
                                      verts[3 * tris[3 * i + 2] + 2], 1.0);
-        norms[i] = normalize(cross(ctm * vertices[3 * i + 1] - ctm * vertices[3 * i],
-                                   ctm * vertices[3 * i + 2] - ctm * vertices[3 * i + 1]));
     }
 }
 
@@ -177,7 +172,9 @@ void tri() {
     int n = NumVertices / 3;
     for (int i = 0; i < n; i++) {
         // compute the lighting at each vertex, then set it as the color there:
-        vec4 n = vec4(norms[i][0], norms[i][1], norms[i][2], 0.0);
+        vec4 norm = normalize(cross(ctm * vertices[3 * i + 1] - ctm * vertices[3 * i],
+                                   ctm * vertices[3 * i + 2] - ctm * vertices[3 * i + 1]));
+        vec4 n = vec4(norm[0], norm[1], norm[2], 0.0);
 
         color4 diffuse_color, specular_color;
 
