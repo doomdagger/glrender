@@ -1,3 +1,4 @@
+#version 130
 // a contrived vertex shader, that colors each vertex in a triangle
 // according to its position
 

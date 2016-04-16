@@ -1,4 +1,5 @@
-// the simplest fragment shader: get the color (from the vertex shader - 
+#version 130
+// the simplest fragment shader: get the color (from the vertex shader -
 // actually interpolated from values specified in the vertex shader - and
 // just pass them through to the render:
 // 
