@@ -177,13 +177,13 @@ void display(void) {
     viewer = vec4(sinf(anglex) * sinf(angley) * radius, cosf(anglex) * radius, sinf(anglex) * cosf(angley) * radius,
                   1.0);
     vec4 v_o = normalize(origin - viewer);
-    vec4 v = normalize(cross(v_o, vec4(0.0, 1.0, 0.0, 0.0)));
-    vec4 u = normalize(cross(v, v_o));
+    vec4 v = normalize(vec4(cross(v_o, vec4(0.0, 1.0, 0.0, 0.0)), 0.0));
+    vec4 u = normalize(vec4(cross(v, v_o), 0.0));
 
     glUniform4fv(pos, 1, viewer);
 
     glUniformMatrix4fv(ctm, 1, GL_TRUE, LookAt(viewer, origin, u));
-    glUniformMatrix4fv(ptm, 1, GL_TRUE, Perspective(40, 1.0, 1, 50));
+    glUniformMatrix4fv(ptm, 1, GL_TRUE, Perspective(40, 1, 1, 50));
 
     // draw the VAO:
     glDrawArrays(GL_TRIANGLES, 0, NumVertices);

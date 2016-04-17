@@ -1,23 +1,11 @@
 #version 130
 // we are going to be getting an attribute from the main program, named
-// "vPosition", one for each vertex.
-in vec4 vPosition;
+// "ver_position", one for each vertex.
+in vec4 ver_position;
 
 // we are going to be getting an attribute from the main program, named
-// "vNorm", one for each vertex.
-in vec4 vNorm;
-
-// we are going to be outputting a single 4-vector, called color, which
-// may be different for each vertex.
-// the fragment shader will be expecting these values, and interpolate
-// them according to the distance of the fragment from the vertices
-out vec4 color;
-
-// camera transform matrix
-uniform mat4 ctm;
-
-// projective transform matrix
-uniform mat4 ptm;
+// "ver_normal", one for each vertex.
+in vec4 ver_normal;
 
 // camera position
 uniform vec4 pos;
@@ -36,8 +24,8 @@ float material_shininess = 100.0;
 void main()
 {
 
-  vec4 light_dir = normalize(light_position - vPosition);
-  vec4 viewer_dir = normalize(pos - vPosition);
+  vec4 light_dir = normalize(light_position - ver_position);
+  vec4 viewer_dir = normalize(pos - ver_position);
 
   // compute these three terms:
   vec4 ambient_color, diffuse_color, specular_color;
@@ -46,17 +34,15 @@ void main()
   ambient_color = light_ambient * material_ambient;
 
   // next, diffuse
-  float dd = dot(light_dir, vNorm);
+  float dd = dot(light_dir, ver_normal);
   if (dd > 0.0) diffuse_color = dd * (light_diffuse * material_diffuse);
   else diffuse_color = vec4(0.0, 0.0, 0.0, 1.0);
 
   // last, specular
-  float sd = dot(normalize(light_dir + viewer_dir), vNorm);
+  float sd = dot(normalize(light_dir + viewer_dir), ver_normal);
   if (sd > 0.0) specular_color = pow(sd, material_shininess) * (light_specular * material_specular);
   else specular_color = vec4(0.0, 0.0, 0.0, 1.0);
 
-  color = ambient_color + diffuse_color + specular_color;
-  color[3] = 1.0;
-
-  gl_Position = ptm * ctm * vPosition;
-} 
+  gl_FragColor = ambient_color + diffuse_color + specular_color;
+  gl_FragColor.a = 1.0;
+}

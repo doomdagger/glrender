@@ -10,12 +10,15 @@ in vec4 vPosition;
 
 // we are also going to be getting color values, per-vertex, from the main
 // program running on the cpu (and that are then stored in the VBO on the
-// card. this color, called "vColor", is just going to be passed through 
+// card. this color, called "vColor", is just going to be passed through
 // to the fragment shader, which will intrpolate its value per-fragment
 // amongst the 3 vertex colors on the triangle that fragment is a part of.
 //
 // on mac you may have to say: "attribute vec4 vColor;" instead of this:
-in vec4 vColor;
+in vec4 vNorm;
+
+uniform mat4 ctm;
+uniform mat4 ptm;
 
 // we are going to be outputting a single 4-vector, called color, which
 // may be different for each vertex.
@@ -23,10 +26,12 @@ in vec4 vColor;
 // them according to the distance of the fragment from the vertices
 //
 // on mac you may have to say: "varying vec4 color;" instead of this:
-out vec4 color;
+out vec4 ver_position;
+out vec4 ver_normal;
 
-void main() 
+void main()
 {
-  gl_Position = vPosition;
-  color = vColor;
-} 
+  ver_position = vPosition;
+  ver_normal = vNorm;
+  gl_Position = ptm * ctm * vPosition;
+}
