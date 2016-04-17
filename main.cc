@@ -35,6 +35,8 @@ vec4 origin(0.0, 0.0, 0.0, 1.0);
 float thetax = 90.0;  // rotation around the X axis, start from horizontal
 float thetay = 0.0;  // rotation around the Y (up) axis
 float radius = 8.0;  // distance between fixed origin and camera
+int lastx = 0;       // keep track of where the mouse was along x axis
+int lasty = 0;       // keep track of where the mouse was along y axis
 
 // variables for opengl
 GLuint buffers[2];
@@ -83,7 +85,7 @@ void init_all_data(const std::string &file) {
         vert_norms[tris[3 * i + 2]] += tri_norms[i];
     }
 
-    for (int i = 0; i < vert_norms.size(); i++) {
+    for (size_t i = 0; i < vert_norms.size(); i++) {
         vert_norms[i] = normalize(vert_norms[i]);
     }
 
@@ -183,7 +185,7 @@ void display(void) {
     glUniform4fv(pos, 1, viewer);
 
     glUniformMatrix4fv(ctm, 1, GL_TRUE, LookAt(viewer, origin, u));
-    glUniformMatrix4fv(ptm, 1, GL_TRUE, Perspective(40, 1, 1, 50));
+    glUniformMatrix4fv(ptm, 1, GL_TRUE, Perspective(40, 1, 1, 51));
 
     // draw the VAO:
     glDrawArrays(GL_TRIANGLES, 0, NumVertices);
@@ -200,9 +202,6 @@ void display(void) {
 // to generate the transformation, ctm, that is applied
 // to all the vertices before they are displayed:
 void mouse_move_rotate(int x, int y) {
-
-    static int lastx = 0;// keep track of where the mouse was along x axis
-    static int lasty = 0;// keep track of where the mouse was along y axis
 
     int amntX = x - lastx;
     int amntY = y - lasty;
@@ -228,6 +227,12 @@ void mouse_move_rotate(int x, int y) {
 
 }
 
+void mouse_enter(int button, int state, int x, int y) {
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+        lastx = x;
+        lasty = y;
+    }
+}
 
 // the keyboard callback, called whenever the user types something with the
 // regular keys.
@@ -281,6 +286,7 @@ int main(int argc, char **argv) {
     // when the mouse is moved, call this function!
     // you can change this to mouse_move_translate to see how it works
     glutMotionFunc(mouse_move_rotate);
+    glutMouseFunc(mouse_enter);
 
     // for any keyboard activity, here is the callback:
     glutKeyboardFunc(mykey);
