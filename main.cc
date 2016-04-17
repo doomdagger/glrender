@@ -14,135 +14,54 @@
 
 #include <GL/glew.h>
 #include <GL/freeglut.h>
-#include <vector>
-#include <fstream>
-#include <sstream>
 
 #endif
 
-
 #include "amath.h"
+#include "misc.h"
 
 // type alias
 typedef amath::vec4 point4;
-typedef amath::vec4 color4;
-
 
 // variables need to be initialized
 int NumVertices = 0;
 point4 *vertices = NULL;
-// we will copy our transformed points to here:
-point4 *points = NULL;
-// and we will store the colors, per face per vertex, here. since there is
-// only 1 triangle, with 3 vertices, there will just be 3 here:
-color4 *colors = NULL;
-
-
-float theta = 0.0;  // rotation around the Y (up) axis
-float posx = 0.0;   // translation along X
-float posy = 0.0;   // translation along Y
-
-GLuint buffers[2];
-GLint matrix_loc;
+vec4 *norms = NULL;
 
 // viewer's position, for lighting calculations
-vec4 viewer = vec4(0.0, 0.0, -1.0, 0.0);
+vec4 viewer;
+vec4 origin(0.0, 0.0, 0.0, 1.0);
 
-// light & material definitions, again for lighting calculations:
-point4 light_position = point4(0.0, 0.0, -1.0, 0.0);
-color4 light_ambient = color4(0.2, 0.2, 0.2, 1.0);
-color4 light_diffuse = color4(1.0, 1.0, 1.0, 1.0);
-color4 light_specular = color4(1.0, 1.0, 1.0, 1.0);
+float thetax = 90.0;  // rotation around the X axis, start from horizontal
+float thetay = 0.0;  // rotation around the Y (up) axis
+float radius = 8.0;  // distance between fixed origin and camera
 
-color4 material_ambient = color4(1.0, 0.0, 1.0, 1.0);
-color4 material_diffuse = color4(1.0, 0.8, 0.0, 1.0);
-color4 material_specular = color4(1.0, 0.8, 0.0, 1.0);
-float material_shininess = 100.0;
-
-// a transformation matrix, for the rotation, which we will apply to every
-// vertex:
-mat4 ctm;
-
+// variables for opengl
+GLuint buffers[2];
+GLint pos, ctm, ptm;
 GLuint program; //shaders
 
 
-// product of components, which we will use for shading calculations:
-vec4 product(vec4 a, vec4 b) {
-    return vec4(a[0] * b[0], a[1] * b[1], a[2] * b[2], a[3] * b[3]);
-}
-
-void parseObjFile(const std::string &file, std::vector<int> &tris, std::vector<float> &verts) {
-    // clear out the tris and verts vectors:
-    tris.clear();
-    verts.clear();
-
-    std::ifstream in(file.c_str());
-
-    if (!in.good()) {
-        std::cout << "Fails at reading file " << file << std::endl;
-    }
-
-    char buffer[1025];
-    std::string cmd;
-
-    for (int line = 1; in.good(); line++) {
-        in.getline(buffer, 1024);
-        buffer[in.gcount()] = 0;
-
-        cmd = "";
-
-        std::istringstream iss(buffer);
-
-        iss >> cmd;
-
-        if (cmd[0] == '#' or cmd.empty()) {
-            // ignore comments or blank lines
-            continue;
-        }
-        else if (cmd == "v") {
-            // got a vertex:
-
-            // read in the parameters:
-            float pa, pb, pc;
-            iss >> pa >> pb >> pc;
-
-            verts.push_back(pa);
-            verts.push_back(pb);
-            verts.push_back(pc);
-        }
-        else if (cmd == "f") {
-            // got a face (triangle)
-
-            // read in the parameters:
-            int i, j, k;
-            iss >> i >> j >> k;
-
-            // vertex numbers in OBJ files start with 1, but in C++ array
-            // indices start with 0, so we're shifting everything down by
-            // 1
-            tris.push_back(i - 1);
-            tris.push_back(j - 1);
-            tris.push_back(k - 1);
-        }
-        else {
-            std::cerr << "Parser error: invalid command at line " << line << std::endl;
-        }
-
-    }
-
-    in.close();
-}
-
+// initialize all dynamic data
+// compute all these norms
+// The easiest way to compute these normals is as follows:
+// 1. make an array of normals that contain the normals for each triangle: e.g. tri_norms[] (computed via crossproduct)
+// 2. make an array of vectors, one for each unique vertex, each initialized to the zero vector, e.g. vert_norms[]
+// 3. go through the array of triangle vertex ids:
+//  if triangle i has vertex j, add tri_norms[i] to vert_nroms[j] (you will be adding each triangle's normal to 3 different vertex normals)
+// 4. when done, normalize all the vert_norms.
 void init_all_data(const std::string &file) {
     std::vector<int> tris;
     std::vector<float> verts;
 
     parseObjFile(file, tris, verts);
 
-    NumVertices = (int)tris.size();
+    NumVertices = (int) tris.size();
     vertices = new point4[NumVertices];
-    points = new point4[NumVertices];
-    colors = new color4[NumVertices];
+    norms = new vec4[NumVertices];                      // norms per vertex per triangle
+
+    std::vector<vec4> tri_norms(tris.size() / 3);       // norms per triangle
+    std::vector<vec4> vert_norms(verts.size() / 3);     // norms per vertex (vertices are unique)
 
     int n = NumVertices / 3;
     for (int i = 0; i < n; ++i) {
@@ -156,49 +75,22 @@ void init_all_data(const std::string &file) {
         vertices[3 * i + 2] = point4(verts[3 * tris[3 * i + 2]],
                                      verts[3 * tris[3 * i + 2] + 1],
                                      verts[3 * tris[3 * i + 2] + 2], 1.0);
+
+        tri_norms[i] = normalize(
+                vec4(cross(vertices[3 * i + 1] - vertices[3 * i], vertices[3 * i + 2] - vertices[3 * i + 1]), 0.0));
+        vert_norms[tris[3 * i]] += tri_norms[i];
+        vert_norms[tris[3 * i + 1]] += tri_norms[i];
+        vert_norms[tris[3 * i + 2]] += tri_norms[i];
     }
-}
 
-// transform the triangle's vertex data and put it into the points array.
-// also, compute the lighting at each vertex, and put that into the colors
-// array.
-void tri() {
-    // pre-compute variables
-    vec4 half = normalize(light_position + viewer);
-    color4 ambient_color = product(material_ambient, light_ambient);
-    vec4 dlpm = product(light_diffuse, material_diffuse);
-    vec4 slpm = product(light_specular, material_specular);
+    for (int i = 0; i < vert_norms.size(); i++) {
+        vert_norms[i] = normalize(vert_norms[i]);
+    }
 
-    int n = NumVertices / 3;
     for (int i = 0; i < n; i++) {
-        // compute the lighting at each vertex, then set it as the color there:
-        vec4 norm = normalize(cross(ctm * vertices[3 * i + 1] - ctm * vertices[3 * i],
-                                   ctm * vertices[3 * i + 2] - ctm * vertices[3 * i + 1]));
-        vec4 n = vec4(norm[0], norm[1], norm[2], 0.0);
-
-        color4 diffuse_color, specular_color;
-
-        float dd = dot(light_position, n);
-
-        if (dd > 0.0) diffuse_color = dd * dlpm;
-        else diffuse_color = color4(0.0, 0.0, 0.0, 1.0);
-
-        dd = dot(half, n);
-        if (dd > 0.0) specular_color = exp(material_shininess * log(dd)) * slpm;
-        else specular_color = vec4(0.0, 0.0, 0.0, 1.0);
-
-
-        // now transform the vertices according to the ctm transformation matrix,
-        // and set the colors for each of them as well. as we are going to give
-        // flat shading, we will ingore the specular component for now.
-        points[3 * i] = ctm * vertices[3 * i];
-        colors[3 * i] = ambient_color + diffuse_color;
-
-        points[3 * i + 1] = ctm * vertices[3 * i + 1];
-        colors[3 * i + 1] = ambient_color + diffuse_color;
-
-        points[3 * i + 2] = ctm * vertices[3 * i + 2];
-        colors[3 * i + 2] = ambient_color + diffuse_color;
+        norms[3 * i] = vert_norms[tris[3 * i]];
+        norms[3 * i + 1] = vert_norms[tris[3 * i + 1]];
+        norms[3 * i + 2] = vert_norms[tris[3 * i + 2]];
     }
 }
 
@@ -228,20 +120,21 @@ void init() {
     // specify that its part of a VAO, what its size is, and where the
     // data is located, and finally a "hint" about how we are going to use
     // the data (the driver will put it in a good memory location, hopefully)
-    glBufferData(GL_ARRAY_BUFFER, sizeof(point4) * NumVertices + sizeof(color4) * NumVertices, NULL, GL_STATIC_DRAW);
+    // vertices position, and normals
+    glBufferData(GL_ARRAY_BUFFER, sizeof(point4) * NumVertices + sizeof(vec4) * NumVertices, NULL, GL_STATIC_DRAW);
 
     // load in these two shaders...  (note: InitShader is defined in the
     // accompanying initshader.c code).
     // the shaders themselves must be text glsl files in the same directory
     // as we are running this program:
-    program = InitShader("vshader_passthrough.glsl", "fshader_passthrough.glsl");
+    program = InitShader("vshader.glsl", "fshader_passthrough.glsl");
 
     // ...and set them to be active
     glUseProgram(program);
 
 
     // this time, we are sending TWO attributes through: the position of each
-    // transformed vertex, and the color we have calculated in tri().
+    // transformed vertex, and its normal.
     GLuint loc, loc2;
 
     loc = glGetAttribLocation(program, "vPosition");
@@ -251,12 +144,21 @@ void init() {
     // beginning of the buffer
     glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
 
-    loc2 = glGetAttribLocation(program, "vColor");
+    loc2 = glGetAttribLocation(program, "vNorm");
     glEnableVertexAttribArray(loc2);
 
     // the vColor attribute is a series of 4-vecs of floats, starting just after
     // the points in the buffer
     glVertexAttribPointer(loc2, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(sizeof(point4) * NumVertices));
+
+    // display callback
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(point4) * NumVertices, vertices);
+    glBufferSubData(GL_ARRAY_BUFFER, sizeof(point4) * NumVertices, sizeof(vec4) * NumVertices, norms);
+
+    // all uniform variables
+    pos = glGetUniformLocation(program, "pos");
+    ctm = glGetUniformLocation(program, "ctm");
+    ptm = glGetUniformLocation(program, "ptm");
 
     // set the background color (white)
     glClearColor(1.0, 1.0, 1.0, 1.0);
@@ -269,16 +171,19 @@ void display(void) {
     // for this example).
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // based on where the mouse has moved to, construct a transformation matrix:
-    ctm = Translate(posx * .01, posy * .01, 0.) * RotateY(theta);
+    // based on where the mouse has moved to:
+    GLfloat anglex = DegreesToRadians * thetax;
+    GLfloat angley = DegreesToRadians * thetay;
+    viewer = vec4(sinf(anglex) * sinf(angley) * radius, cosf(anglex) * radius, sinf(anglex) * cosf(angley) * radius,
+                  1.0);
+    vec4 v_o = normalize(origin - viewer);
+    vec4 v = normalize(cross(v_o, vec4(0.0, 1.0, 0.0, 0.0)));
+    vec4 u = normalize(cross(v, v_o));
 
-    // now build transform all the vertices and put them in the points array,
-    // and their colors in the colors array:
-    tri();
+    glUniform4fv(pos, 1, viewer);
 
-    // tell the VBO to get the data from the points arrat and the colors array:
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(point4) * NumVertices, points);
-    glBufferSubData(GL_ARRAY_BUFFER, sizeof(point4) * NumVertices, sizeof(color4) * NumVertices, colors);
+    glUniformMatrix4fv(ctm, 1, GL_TRUE, LookAt(viewer, origin, u));
+    glUniformMatrix4fv(ptm, 1, GL_TRUE, Perspective(40, 1.0, 1, 50));
 
     // draw the VAO:
     glDrawArrays(GL_TRIANGLES, 0, NumVertices);
@@ -296,39 +201,27 @@ void display(void) {
 // to all the vertices before they are displayed:
 void mouse_move_rotate(int x, int y) {
 
-    static int lastx = 0;// keep track of where the mouse was last:
+    static int lastx = 0;// keep track of where the mouse was along x axis
+    static int lasty = 0;// keep track of where the mouse was along y axis
 
     int amntX = x - lastx;
+    int amntY = y - lasty;
+
     if (amntX != 0) {
-        theta += amntX;
-        if (theta > 360.0) theta -= 360.0;
-        if (theta < 0.0) theta += 360.0;
+        thetay += amntX;
+        if (thetay > 360.0) thetay -= 360.0;
+        if (thetay < 0.0) thetay += 360.0;
 
         lastx = x;
     }
 
-    // force the display routine to be called as soon as possible:
-    glutPostRedisplay();
+    if (amntY != 0) {
+        thetax += amntY;
+        if (thetax > 175) thetax = 175;
+        if (thetax < 5) thetax = 5;
 
-}
-
-
-// use this motionfunc to demonstrate translation - it adjusts posx and
-// posy based on the mouse movement. posx and posy are then used in the
-// display callback to generate the transformation, ctm, that is applied
-// to all the vertices before they are displayed:
-void mouse_move_translate(int x, int y) {
-
-    static int lastx = 0;
-    static int lasty = 0;  // keep track of where the mouse was last:
-
-    if (x - lastx < 0) --posx;
-    else if (x - lastx > 0) ++posx;
-    lastx = x;
-
-    if (y - lasty > 0) --posy;
-    else if (y - lasty < 0) ++posy;
-    lasty = y;
+        lasty = y;
+    }
 
     // force the display routine to be called as soon as possible:
     glutPostRedisplay();
@@ -339,13 +232,29 @@ void mouse_move_translate(int x, int y) {
 // the keyboard callback, called whenever the user types something with the
 // regular keys.
 void mykey(unsigned char key, int mousex, int mousey) {
-    if (key == 'q' || key == 'Q') exit(0);
+    if (key == 'q' || key == 'Q') {
+        delete [] vertices;
+        delete [] norms;
+        exit(0);
+    }
 
     // and r resets the view:
     if (key == 'r') {
-        posx = 0;
-        posy = 0;
-        theta = 0;
+        thetax = 90.0;
+        thetay = 0.0;
+        radius = 8.0;
+        glutPostRedisplay();
+    }
+
+    // move closer
+    if (key == 'z' && radius > 2) {
+        radius *= 0.9;
+        glutPostRedisplay();
+    }
+
+    // move farther
+    if (key == 'x' && radius < 50) {
+        radius *= 1.1;
         glutPostRedisplay();
     }
 }
@@ -391,8 +300,7 @@ int main(int argc, char **argv) {
     glutMainLoop();
 
     // clean up all the memory allocation on heap
-    delete [] vertices;
-    delete [] points;
-    delete [] colors;
+    delete[] vertices;
+    delete[] norms;
     return 0;
 }

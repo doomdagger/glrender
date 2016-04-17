@@ -23,7 +23,7 @@ in vec4 vColor;
 // them according to the distance of the fragment from the vertices
 //
 // on mac you may have to say: "varying vec4 color;" instead of this:
-varying vec4 color;
+out vec4 color;
 
 void main() 
 {
