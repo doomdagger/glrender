@@ -17,8 +17,10 @@
 
 #endif
 
+#include <vector>
 #include "amath.h"
 #include "misc.h"
+#include "beziersurface.h"
 
 // type alias
 typedef amath::vec4 point4;
@@ -37,63 +39,87 @@ float thetay = 0.0;  // rotation around the Y (up) axis
 float radius = 8.0;  // distance between fixed origin and camera
 int lastx = 0;       // keep track of where the mouse was along x axis
 int lasty = 0;       // keep track of where the mouse was along y axis
+bool changed_sampling_resolution = false;
+int sampling_resolution = 1;
 
 // variables for opengl
 GLuint buffers[2];
 GLint pos, ctm, ptm;
 GLuint program; //shaders
 
+// added bezier support
+std::vector<BezierSurface> surfaces;
+
+void reload_vertices_norm() {
+    int points_num = 0;
+    for (auto &surf : surfaces) {
+        points_num += (2 * surf.u_deg() * sampling_resolution) * ((surf.v_deg() * sampling_resolution)) * 3;
+    }
+    NumVertices = points_num;
+
+    delete [] vertices;
+    delete [] norms;
+
+    vertices = new point4[NumVertices];
+    norms = new point4[NumVertices];
+
+    std::vector<vec4> points;
+    std::vector<vec4> norms;
+
+    int vn_index = 0;
+
+    for (auto &surf : surfaces) {
+        surf.eval_surface(sampling_resolution, points, norms);
+
+        int u_sample_num = sampling_resolution * surf.u_deg() + 1;
+        int v_sample_num = sampling_resolution * surf.v_deg() + 1;
+
+        for (int i = 0; i < v_sample_num - 1; ++i) {
+            for (int j = 0; j < u_sample_num - 1; ++j) {
+                vec4 tri1_v1 = points[i * u_sample_num + j];
+                vec4 tri1_v2 = points[i * u_sample_num + j + 1];
+                vec4 tri1_v3 = points[(i + 1) * u_sample_num + j];
+
+                vec4 tri2_v1 = tri1_v2;
+                vec4 tri2_v2 = tri1_v3;
+                vec4 tri2_v3 = points[(i + 1) * u_sample_num + j + 1];
+
+                vec4 tri1_n1 = norms[i * u_sample_num + j];
+                vec4 tri1_n2 = norms[i * u_sample_num + j + 1];
+                vec4 tri1_n3 = norms[(i + 1) * u_sample_num + j];
+
+                vec4 tri2_n1 = tri1_v2;
+                vec4 tri2_n2 = tri1_v3;
+                vec4 tri2_n3 = norms[(i + 1) * u_sample_num + j + 1];
+
+                vertices[vn_index] = tri1_v1;
+                vertices[vn_index + 1] = tri1_v2;
+                vertices[vn_index + 2] = tri1_v3;
+
+                vertices[vn_index + 3] = tri2_v1;
+                vertices[vn_index + 4] = tri2_v2;
+                vertices[vn_index + 5] = tri2_v3;
+
+                norms[vn_index] = tri1_n1;
+                norms[vn_index + 1] = tri1_n2;
+                norms[vn_index + 2] = tri1_n3;
+
+                norms[vn_index + 3] = tri2_n1;
+                norms[vn_index + 4] = tri2_n2;
+                norms[vn_index + 5] = tri2_n3;
+
+                vn_index += 6;
+            }
+        }
+    }
+}
+
 
 // initialize all dynamic data
-// compute all these norms
-// The easiest way to compute these normals is as follows:
-// 1. make an array of normals that contain the normals for each triangle: e.g. tri_norms[] (computed via crossproduct)
-// 2. make an array of vectors, one for each unique vertex, each initialized to the zero vector, e.g. vert_norms[]
-// 3. go through the array of triangle vertex ids:
-//  if triangle i has vertex j, add tri_norms[i] to vert_nroms[j] (you will be adding each triangle's normal to 3 different vertex normals)
-// 4. when done, normalize all the vert_norms.
 void init_all_data(const std::string &file) {
-    std::vector<int> tris;
-    std::vector<float> verts;
+    parse_bezier_surface(file, surfaces);
 
-    parseObjFile(file, tris, verts);
-
-    NumVertices = (int) tris.size();
-    vertices = new point4[NumVertices];
-    norms = new vec4[NumVertices];                      // norms per vertex per triangle
-
-    std::vector<vec4> tri_norms(tris.size() / 3);       // norms per triangle
-    std::vector<vec4> vert_norms(verts.size() / 3);     // norms per vertex (vertices are unique)
-
-    int n = NumVertices / 3;
-    for (int i = 0; i < n; ++i) {
-        // get the vertices
-        vertices[3 * i] = point4(verts[3 * tris[3 * i]],
-                                 verts[3 * tris[3 * i] + 1],
-                                 verts[3 * tris[3 * i] + 2], 1.0);
-        vertices[3 * i + 1] = point4(verts[3 * tris[3 * i + 1]],
-                                     verts[3 * tris[3 * i + 1] + 1],
-                                     verts[3 * tris[3 * i + 1] + 2], 1.0);
-        vertices[3 * i + 2] = point4(verts[3 * tris[3 * i + 2]],
-                                     verts[3 * tris[3 * i + 2] + 1],
-                                     verts[3 * tris[3 * i + 2] + 2], 1.0);
-
-        tri_norms[i] = normalize(
-                vec4(cross(vertices[3 * i + 1] - vertices[3 * i], vertices[3 * i + 2] - vertices[3 * i + 1]), 0.0));
-        vert_norms[tris[3 * i]] += tri_norms[i];
-        vert_norms[tris[3 * i + 1]] += tri_norms[i];
-        vert_norms[tris[3 * i + 2]] += tri_norms[i];
-    }
-
-    for (size_t i = 0; i < vert_norms.size(); i++) {
-        vert_norms[i] = normalize(vert_norms[i]);
-    }
-
-    for (int i = 0; i < n; i++) {
-        norms[3 * i] = vert_norms[tris[3 * i]];
-        norms[3 * i + 1] = vert_norms[tris[3 * i + 1]];
-        norms[3 * i + 2] = vert_norms[tris[3 * i + 2]];
-    }
+    reload_vertices_norm();
 }
 
 
@@ -187,6 +213,38 @@ void display(void) {
     glUniformMatrix4fv(ctm, 1, GL_TRUE, LookAt(viewer, origin, u));
     glUniformMatrix4fv(ptm, 1, GL_TRUE, Perspective(40, 1, 1, 51));
 
+    if (changed_sampling_resolution) {
+        reload_vertices_norm();
+        // specify that its part of a VAO, what its size is, and where the
+        // data is located, and finally a "hint" about how we are going to use
+        // the data (the driver will put it in a good memory location, hopefully)
+        // vertices position, and normals
+        glBufferData(GL_ARRAY_BUFFER, sizeof(point4) * NumVertices + sizeof(vec4) * NumVertices, NULL, GL_STATIC_DRAW);
+
+        // this time, we are sending TWO attributes through: the position of each
+        // transformed vertex, and its normal.
+        GLuint loc, loc2;
+
+        loc = glGetAttribLocation(program, "vPosition");
+        glEnableVertexAttribArray(loc);
+
+        // the vPosition attribute is a series of 4-vecs of floats, starting at the
+        // beginning of the buffer
+        glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+
+        loc2 = glGetAttribLocation(program, "vNorm");
+        glEnableVertexAttribArray(loc2);
+
+        // the vColor attribute is a series of 4-vecs of floats, starting just after
+        // the points in the buffer
+        glVertexAttribPointer(loc2, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(sizeof(point4) * NumVertices));
+
+        // display callback
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(point4) * NumVertices, vertices);
+        glBufferSubData(GL_ARRAY_BUFFER, sizeof(point4) * NumVertices, sizeof(vec4) * NumVertices, norms);
+        changed_sampling_resolution = false;
+    }
+
     // draw the VAO:
     glDrawArrays(GL_TRIANGLES, 0, NumVertices);
 
@@ -262,12 +320,24 @@ void mykey(unsigned char key, int mousex, int mousey) {
         radius *= 1.1;
         glutPostRedisplay();
     }
+
+    if (key == '<' && sampling_resolution > 1) {
+        sampling_resolution--;
+        changed_sampling_resolution = true;
+        glutPostRedisplay();
+    }
+
+    if (key == '>' && sampling_resolution < 10) {
+        sampling_resolution++;
+        changed_sampling_resolution = true;
+        glutPostRedisplay();
+    }
 }
 
 
 int main(int argc, char **argv) {
     if (argc != 2) {
-        std::cerr << "Usage: glrender OBJ_FILE" << std::endl;
+        std::cerr << "Usage: glrender BEZIER_FILE" << std::endl;
         return -1;
     }
     init_all_data(argv[1]);
