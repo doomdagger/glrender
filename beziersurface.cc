@@ -104,7 +104,7 @@ void BezierSurface::eval_sample(float u_samp, float v_samp, point &pnt, vec4 &no
     for (int i = 0; i <= _u_deg; ++i) {
         point temp;
         get_column(i);
-        eval_bezier(get_column(i), _v_deg, v_samp, temp, tangent);
+        eval_bezier(get_column(i), _v_deg, 1 - v_samp, temp, tangent);
         controlpoints.push_back(temp);
     }
 
