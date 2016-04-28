@@ -65,7 +65,7 @@ void BezierSurface::eval_bezier(const std::vector<point> &controlpoints, int deg
         prev = temp[start_index];
         for (int i = start_index + 1; i <= degree; ++i) {
             point cur = temp[i];
-            temp[i] = point(cur.x * t + prev.x * (1 -t), cur.y * t + prev.y * (1 - t), cur.z * t + prev.z * (1 - t));
+            temp[i] = point(cur.x * t + prev.x * (1 - t), cur.y * t + prev.y * (1 - t), cur.z * t + prev.z * (1 - t), 1);
             prev = cur;
         }
         ++start_index;
@@ -108,15 +108,16 @@ void BezierSurface::eval_sample(float u_samp, float v_samp, point &pnt, vec4 &no
         controlpoints.push_back(temp);
     }
 
+    point redundant;
     vec4 u_tan;
-    eval_bezier(controlpoints, _u_deg, u_samp, u_v, u_tan);
+    eval_bezier(controlpoints, _u_deg, u_samp, redundant, u_tan);
 
     pnt.x = u_v.x;
     pnt.y = u_v.y;
     pnt.z = u_v.z;
     pnt.w = 1;
 
-    vec4 ret(cross(u_tan, v_tan), 0);
+    vec4 ret(normalize(cross(u_tan, v_tan)), 0);
     norm.x = ret.x;
     norm.y = ret.y;
     norm.z = ret.z;

@@ -27,8 +27,8 @@ typedef amath::vec4 point4;
 
 // variables need to be initialized
 int NumVertices = 0;
-point4 *vertices = NULL;
-vec4 *norms = NULL;
+point4 *vertices = nullptr;
+vec4 *norms = nullptr;
 
 // viewer's position, for lighting calculations
 vec4 viewer;
@@ -57,40 +57,44 @@ void reload_vertices_norm() {
     }
     NumVertices = points_num;
 
-    delete [] vertices;
-    delete [] norms;
+    if (vertices) {
+        delete[] vertices;
+    }
+    if (norms) {
+        delete[] norms;
+    }
 
     vertices = new point4[NumVertices];
     norms = new point4[NumVertices];
 
-    std::vector<vec4> points;
-    std::vector<vec4> norms;
+    std::vector<vec4> points_vec;
+    std::vector<vec4> norm_vec;
 
     int vn_index = 0;
 
     for (auto &surf : surfaces) {
-        surf.eval_surface(sampling_resolution, points, norms);
+        surf.eval_surface(sampling_resolution, points_vec, norm_vec);
 
         int u_sample_num = sampling_resolution * surf.u_deg() + 1;
         int v_sample_num = sampling_resolution * surf.v_deg() + 1;
 
         for (int i = 0; i < v_sample_num - 1; ++i) {
             for (int j = 0; j < u_sample_num - 1; ++j) {
-                vec4 tri1_v1 = points[i * u_sample_num + j];
-                vec4 tri1_v2 = points[i * u_sample_num + j + 1];
-                vec4 tri1_v3 = points[(i + 1) * u_sample_num + j];
+                vec4 tri1_v1 = points_vec[i * u_sample_num + j];
+                vec4 tri1_v2 = points_vec[(i + 1) * u_sample_num + j + 1];
+                vec4 tri1_v3 = points_vec[(i + 1) * u_sample_num + j];
 
                 vec4 tri2_v1 = tri1_v2;
-                vec4 tri2_v2 = tri1_v3;
-                vec4 tri2_v3 = points[(i + 1) * u_sample_num + j + 1];
+                vec4 tri2_v2 = tri1_v1;
+                vec4 tri2_v3 = points_vec[i * u_sample_num + j + 1];
 
-                vec4 tri1_n1 = norms[i * u_sample_num + j];
-                vec4 tri1_n2 = norms[i * u_sample_num + j + 1];
-                vec4 tri1_n3 = norms[(i + 1) * u_sample_num + j];
+                vec4 tri1_n1 = norm_vec[i * u_sample_num + j];
+                vec4 tri1_n2 = norm_vec[(i + 1) * u_sample_num + j + 1];
+                vec4 tri1_n3 = norm_vec[(i + 1) * u_sample_num + j];
 
-                vec4 tri2_n1 = tri1_v2;
-                vec4 tri2_n2 = tri1_v3;
-                vec4 tri2_n3 = norms[(i + 1) * u_sample_num + j + 1];
+                vec4 tri2_n1 = tri1_n2;
+                vec4 tri2_n2 = tri1_n1;
+                vec4 tri2_n3 = norm_vec[i * u_sample_num + j + 1];
 
                 vertices[vn_index] = tri1_v1;
                 vertices[vn_index + 1] = tri1_v2;
