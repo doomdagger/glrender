@@ -18,6 +18,40 @@ vec4 product(vec4 a, vec4 b) {
     return vec4(a[0] * b[0], a[1] * b[1], a[2] * b[2], a[3] * b[3]);
 }
 
+bool isObjFile(const std::string &file) {
+    std::ifstream in(file.c_str());
+
+    if (!in.good()) {
+        std::cout << "Fails at reading file " << file << std::endl;
+        return false;
+    }
+
+    char buffer[1025];
+    std::string cmd;
+
+    for (int line = 1; in.good(); line++) {
+        in.getline(buffer, 1024);
+        buffer[in.gcount()] = 0;
+
+        cmd = "";
+
+        std::istringstream iss(buffer);
+
+        iss >> cmd;
+
+        if (cmd[0] == '#' or cmd.empty()) {
+            // ignore comments or blank lines
+            continue;
+        }
+        else {
+            in.close();
+            return cmd == "v" || cmd == "f";
+        }
+
+    }
+    return false;
+}
+
 void parseObjFile(const std::string &file, std::vector<int> &tris, std::vector<float> &verts) {
     // clear out the tris and verts vectors:
     tris.clear();
@@ -27,6 +61,7 @@ void parseObjFile(const std::string &file, std::vector<int> &tris, std::vector<f
 
     if (!in.good()) {
         std::cout << "Fails at reading file " << file << std::endl;
+        return;
     }
 
     char buffer[1025];

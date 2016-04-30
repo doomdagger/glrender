@@ -9,4 +9,4 @@ include_directories("/usr/include/GL")
 add_executable(myprog ${SOURCE_FILES})
 target_link_libraries(myprog glut GL GLU GLEW m)
 
-file(COPY fshader_passthrough.glsl vshader.glsl DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY fshader.glsl vshader.glsl DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

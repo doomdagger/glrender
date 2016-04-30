@@ -7,12 +7,6 @@ in vec4 vPosition;
 // "vNorm", one for each vertex.
 in vec4 vNorm;
 
-// we are going to be outputting a single 4-vector, called color, which
-// may be different for each vertex.
-// the fragment shader will be expecting these values, and interpolate
-// them according to the distance of the fragment from the vertices
-out vec4 color;
-
 // camera transform matrix
 uniform mat4 ctm;
 
@@ -22,41 +16,18 @@ uniform mat4 ptm;
 // camera position
 uniform vec4 pos;
 
-// light positions (needed for shading) and the material spec:
-vec4 light_position = vec4(100.0, 100.0, 100.0, 1.0);
-vec4 light_ambient  = vec4(0.2, 0.2, 0.2, 1.0);
-vec4 light_diffuse  = vec4(1.0, 1.0, 1.0, 1.0);
-vec4 light_specular = vec4(1.0, 1.0, 1.0, 1.0);
+// light position
+uniform vec4 lpos;
 
-vec4 material_ambient  = vec4(1.0, 0.0, 1.0, 1.0);
-vec4 material_diffuse  = vec4(1.0, 0.8, 0.0, 1.0);
-vec4 material_specular = vec4(1.0, 0.8, 0.0, 1.0);
-float material_shininess = 100.0;
+varying vec4 norm;
+varying vec4 light_dir;
+varying vec4 viewer_dir;
 
 void main()
 {
-
-  vec4 light_dir = normalize(light_position - vPosition);
-  vec4 viewer_dir = normalize(pos - vPosition);
-
-  // compute these three terms:
-  vec4 ambient_color, diffuse_color, specular_color;
-
-  // first, ambient light
-  ambient_color = light_ambient * material_ambient;
-
-  // next, diffuse
-  float dd = dot(light_dir, vNorm);
-  if (dd > 0.0) diffuse_color = dd * (light_diffuse * material_diffuse);
-  else diffuse_color = vec4(0.0, 0.0, 0.0, 1.0);
-
-  // last, specular
-  float sd = dot(normalize(light_dir + viewer_dir), vNorm);
-  if (sd > 0.0) specular_color = pow(sd, material_shininess) * (light_specular * material_specular);
-  else specular_color = vec4(0.0, 0.0, 0.0, 1.0);
-
-  color = ambient_color + diffuse_color + specular_color;
-  color[3] = 1.0;
+  norm = vNorm;
+  light_dir = normalize(lpos - vPosition);
+  viewer_dir = normalize(pos - vPosition);
 
   gl_Position = ptm * ctm * vPosition;
 } 

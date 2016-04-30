@@ -42,13 +42,78 @@ int lasty = 0;       // keep track of where the mouse was along y axis
 bool changed_sampling_resolution = false;
 int sampling_resolution = 1;
 
+bool bezier_file = false;
+
+// light positions (needed for shading) and the material spec:
+vec4 light_position = vec4(100.0, 100.0, 100.0, 1.0);
+vec4 light_ambient  = vec4(0.2, 0.2, 0.2, 1.0);
+vec4 light_diffuse  = vec4(1.0, 1.0, 1.0, 1.0);
+vec4 light_specular = vec4(1.0, 1.0, 1.0, 1.0);
+
+vec4 material_ambient  = vec4(1.0, 0.0, 1.0, 1.0);
+vec4 material_diffuse  = vec4(1.0, 0.8, 0.0, 1.0);
+vec4 material_specular = vec4(1.0, 0.8, 0.0, 1.0);
+float material_shininess = 100.0;
+
 // variables for opengl
 GLuint buffers[2];
-GLint pos, ctm, ptm;
+GLint pos, ctm, ptm, lpos, lamb, ldiff, lspec, mamb, mdiff, mspec, ms;
 GLuint program; //shaders
 
 // added bezier support
 std::vector<BezierSurface> surfaces;
+
+// initialize all dynamic data
+// compute all these norms
+// The easiest way to compute these normals is as follows:
+// 1. make an array of normals that contain the normals for each triangle: e.g. tri_norms[] (computed via crossproduct)
+// 2. make an array of vectors, one for each unique vertex, each initialized to the zero vector, e.g. vert_norms[]
+// 3. go through the array of triangle vertex ids:
+//  if triangle i has vertex j, add tri_norms[i] to vert_nroms[j] (you will be adding each triangle's normal to 3 different vertex normals)
+// 4. when done, normalize all the vert_norms.
+void init_obj_vertices_norm(const std::string &file) {
+    std::vector<int> tris;
+    std::vector<float> verts;
+
+    parseObjFile(file, tris, verts);
+
+    NumVertices = (int) tris.size();
+    vertices = new point4[NumVertices];
+    norms = new vec4[NumVertices];                      // norms per vertex per triangle
+
+    std::vector<vec4> tri_norms(tris.size() / 3);       // norms per triangle
+    std::vector<vec4> vert_norms(verts.size() / 3);     // norms per vertex (vertices are unique)
+
+    int n = NumVertices / 3;
+    for (int i = 0; i < n; ++i) {
+        // get the vertices
+        vertices[3 * i] = point4(verts[3 * tris[3 * i]],
+                                 verts[3 * tris[3 * i] + 1],
+                                 verts[3 * tris[3 * i] + 2], 1.0);
+        vertices[3 * i + 1] = point4(verts[3 * tris[3 * i + 1]],
+                                     verts[3 * tris[3 * i + 1] + 1],
+                                     verts[3 * tris[3 * i + 1] + 2], 1.0);
+        vertices[3 * i + 2] = point4(verts[3 * tris[3 * i + 2]],
+                                     verts[3 * tris[3 * i + 2] + 1],
+                                     verts[3 * tris[3 * i + 2] + 2], 1.0);
+
+        tri_norms[i] = normalize(
+                vec4(cross(vertices[3 * i + 1] - vertices[3 * i], vertices[3 * i + 2] - vertices[3 * i + 1]), 0.0));
+        vert_norms[tris[3 * i]] += tri_norms[i];
+        vert_norms[tris[3 * i + 1]] += tri_norms[i];
+        vert_norms[tris[3 * i + 2]] += tri_norms[i];
+    }
+
+    for (size_t i = 0; i < vert_norms.size(); i++) {
+        vert_norms[i] = normalize(vert_norms[i]);
+    }
+
+    for (int i = 0; i < n; i++) {
+        norms[3 * i] = vert_norms[tris[3 * i]];
+        norms[3 * i + 1] = vert_norms[tris[3 * i + 1]];
+        norms[3 * i + 2] = vert_norms[tris[3 * i + 2]];
+    }
+}
 
 void reload_vertices_norm() {
     int points_num = 0;
@@ -120,7 +185,7 @@ void reload_vertices_norm() {
 
 
 // initialize all dynamic data
-void init_all_data(const std::string &file) {
+void init_bezier_vertices_norm(const std::string &file) {
     parse_bezier_surface(file, surfaces);
 
     reload_vertices_norm();
@@ -159,7 +224,7 @@ void init() {
     // accompanying initshader.c code).
     // the shaders themselves must be text glsl files in the same directory
     // as we are running this program:
-    program = InitShader("vshader.glsl", "fshader_passthrough.glsl");
+    program = InitShader("vshader.glsl", "fshader.glsl");
 
     // ...and set them to be active
     glUseProgram(program);
@@ -191,6 +256,14 @@ void init() {
     pos = glGetUniformLocation(program, "pos");
     ctm = glGetUniformLocation(program, "ctm");
     ptm = glGetUniformLocation(program, "ptm");
+    lpos = glGetUniformLocation(program, "lpos");
+    lamb = glGetUniformLocation(program, "lamb");
+    ldiff = glGetUniformLocation(program, "ldiff");
+    lspec = glGetUniformLocation(program, "lspec");
+    mamb = glGetUniformLocation(program, "mamb");
+    mdiff = glGetUniformLocation(program, "mdiff");
+    mspec = glGetUniformLocation(program, "mspec");
+    ms = glGetUniformLocation(program, "ms");
 
     // set the background color (white)
     glClearColor(1.0, 1.0, 1.0, 1.0);
@@ -217,7 +290,17 @@ void display(void) {
     glUniformMatrix4fv(ctm, 1, GL_TRUE, LookAt(viewer, origin, u));
     glUniformMatrix4fv(ptm, 1, GL_TRUE, Perspective(40, 1, 1, 51));
 
-    if (changed_sampling_resolution) {
+    // lpos, lamb, ldiff, lspec, mamb, mdiff, mspec, ms;
+    glUniform4fv(lpos, 1, light_position);
+    glUniform4fv(lamb, 1, light_ambient);
+    glUniform4fv(ldiff, 1, light_diffuse);
+    glUniform4fv(lspec, 1, light_specular);
+    glUniform4fv(mamb, 1, material_ambient);
+    glUniform4fv(mdiff, 1, material_diffuse);
+    glUniform4fv(mspec, 1, material_specular);
+    glUniform1f(ms, material_shininess);
+
+    if (bezier_file && changed_sampling_resolution) {
         reload_vertices_norm();
         // specify that its part of a VAO, what its size is, and where the
         // data is located, and finally a "hint" about how we are going to use
@@ -325,13 +408,13 @@ void mykey(unsigned char key, int mousex, int mousey) {
         glutPostRedisplay();
     }
 
-    if (key == '<' && sampling_resolution > 1) {
+    if (key == '<' && sampling_resolution > 1 && bezier_file) {
         sampling_resolution--;
         changed_sampling_resolution = true;
         glutPostRedisplay();
     }
 
-    if (key == '>' && sampling_resolution < 10) {
+    if (key == '>' && sampling_resolution < 10 && bezier_file) {
         sampling_resolution++;
         changed_sampling_resolution = true;
         glutPostRedisplay();
@@ -341,10 +424,17 @@ void mykey(unsigned char key, int mousex, int mousey) {
 
 int main(int argc, char **argv) {
     if (argc != 2) {
-        std::cerr << "Usage: glrender BEZIER_FILE" << std::endl;
+        std::cerr << "Usage: glrender FILE" << std::endl;
         return -1;
     }
-    init_all_data(argv[1]);
+
+    if (isObjFile(argv[1])) {
+        bezier_file = false;
+        init_obj_vertices_norm(argv[1]);
+    } else {
+        bezier_file = true;
+        init_bezier_vertices_norm(argv[1]);
+    }
 
     // initialize glut, and set the display modes
     glutInit(&argc, argv);
