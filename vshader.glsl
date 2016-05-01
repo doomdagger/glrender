@@ -26,8 +26,8 @@ varying vec4 viewer_dir;
 void main()
 {
   norm = vNorm;
-  light_dir = normalize(lpos - vPosition);
-  viewer_dir = normalize(pos - vPosition);
+  light_dir = lpos - vPosition;
+  viewer_dir = pos - vPosition;
 
   gl_Position = ptm * ctm * vPosition;
 } 

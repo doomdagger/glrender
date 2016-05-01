@@ -19,6 +19,10 @@ uniform float ms;
 void main() 
 {
 
+  vec4 n = normalize(norm);
+  vec4 ld = normalize(light_dir);
+  vec4 vd = normalize(viewer_dir);
+
   // compute these three terms:
   vec4 ambient_color, diffuse_color, specular_color;
 
@@ -26,12 +30,12 @@ void main()
   ambient_color = lamb * mamb;
 
   // next, diffuse
-  float dd = dot(light_dir, norm);
+  float dd = dot(ld, n);
   if (dd > 0.0) diffuse_color = dd * (ldiff * mdiff);
   else diffuse_color = vec4(0.0, 0.0, 0.0, 1.0);
 
   // last, specular
-  float sd = dot(normalize(light_dir + viewer_dir), norm);
+  float sd = dot(normalize(ld + vd), n);
   if (sd > 0.0) specular_color = pow(sd, ms) * (lspec * mspec);
   else specular_color = vec4(0.0, 0.0, 0.0, 1.0);
 
