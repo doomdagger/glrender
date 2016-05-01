@@ -1,9 +1,11 @@
 #version 130
 
+// interpolated
 in vec4 norm;
 in vec4 light_dir;
 in vec4 viewer_dir;
 
+// uniforms that describe the light and material parameters
 uniform vec4 lamb;
 uniform vec4 ldiff;
 uniform vec4 lspec;
@@ -11,6 +13,7 @@ uniform vec4 lspec;
 uniform vec4 mamb;
 uniform vec4 mdiff;
 uniform vec4 mspec;
+
 uniform float ms;
 
 void main() 
