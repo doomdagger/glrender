@@ -265,6 +265,16 @@ void init() {
     mspec = glGetUniformLocation(program, "mspec");
     ms = glGetUniformLocation(program, "ms");
 
+    // lpos, lamb, ldiff, lspec, mamb, mdiff, mspec, ms;
+    glUniform4fv(lpos, 1, light_position);
+    glUniform4fv(lamb, 1, light_ambient);
+    glUniform4fv(ldiff, 1, light_diffuse);
+    glUniform4fv(lspec, 1, light_specular);
+    glUniform4fv(mamb, 1, material_ambient);
+    glUniform4fv(mdiff, 1, material_diffuse);
+    glUniform4fv(mspec, 1, material_specular);
+    glUniform1f(ms, material_shininess);
+
     // set the background color (white)
     glClearColor(1.0, 1.0, 1.0, 1.0);
 }
@@ -289,16 +299,6 @@ void display(void) {
 
     glUniformMatrix4fv(ctm, 1, GL_TRUE, LookAt(viewer, origin, u));
     glUniformMatrix4fv(ptm, 1, GL_TRUE, Perspective(40, 1, 1, 51));
-
-    // lpos, lamb, ldiff, lspec, mamb, mdiff, mspec, ms;
-    glUniform4fv(lpos, 1, light_position);
-    glUniform4fv(lamb, 1, light_ambient);
-    glUniform4fv(ldiff, 1, light_diffuse);
-    glUniform4fv(lspec, 1, light_specular);
-    glUniform4fv(mamb, 1, material_ambient);
-    glUniform4fv(mdiff, 1, material_diffuse);
-    glUniform4fv(mspec, 1, material_specular);
-    glUniform1f(ms, material_shininess);
 
     if (bezier_file && changed_sampling_resolution) {
         reload_vertices_norm();
