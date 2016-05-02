@@ -49,6 +49,7 @@ bool isObjFile(const std::string &file) {
         }
 
     }
+    in.close();
     return false;
 }
 
